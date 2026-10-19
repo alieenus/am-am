@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Am Am</title>
+<meta name="description" content="Co na obiad? Nasze sprawdzone dania.">
+<meta name="theme-color" content="#9b1d3f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Am Am">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<style>
+/* Layout: sticky search bar, filter chips, photo grid ⇄ list; dialogs for add/edit, details and ingredients */
+:root{
+  --bg:#f6f5f2; --surface:#ffffff; --fg:#1f1b1d; --muted:#6d6468; --line:#e4dfe0;
+  --accent:#9b1d3f; --accent-fg:#ffffff; --accent-soft:#f6e3e8; --herb:#2f6b4a;
+  --shadow:0 1px 2px rgba(40,10,20,.06),0 6px 20px rgba(40,10,20,.06);
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --r:14px;
+  color-scheme:light;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#161214; --surface:#211b1e; --fg:#f2ecee; --muted:#a99ea3; --line:#3a3135;
+  --accent:#e0577c; --accent-fg:#1a0d12; --accent-soft:#3b1d27; --herb:#7cc49c;
+  --shadow:0 1px 2px rgba(0,0,0,.4); color-scheme:dark}}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+img{max-width:100%}
+[hidden]{display:none!important}
+.wrap{max-width:1100px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 90px}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(34px,6vw,52px);line-height:1;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);margin:6px 0 0}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:9px 16px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--accent);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.icon{padding:9px 11px}
+
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 10px;margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.searchrow{display:flex;gap:8px;align-items:center}
+.search{flex:1;min-width:0;position:relative}
+.search input{width:100%;border:1.5px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 40px 12px 42px;font-size:16px}
+.search input:focus{border-color:var(--accent);outline:none}
+.search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.search .clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--muted);font-size:20px;padding:4px 10px}
+.seg{display:flex;border:1.5px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.seg button{border:0;background:none;padding:11px 12px;color:var(--muted);display:grid;place-items:center}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13.5px;white-space:nowrap;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip .n{color:var(--muted);font-variant-numeric:tabular-nums;margin-left:4px;font-size:12px}
+.chip[aria-pressed="true"] .n{color:inherit;opacity:.7}
+.meta{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--muted);font-size:13px;flex-wrap:wrap}
+.sort{display:flex;gap:4px}
+.sort button{border:0;background:none;color:var(--muted);padding:2px 6px;border-radius:6px;font-size:13px}
+.sort button[aria-pressed="true"]{color:var(--fg);font-weight:600;background:var(--surface)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;margin-top:6px}
+.card{background:var(--surface);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);border:0;padding:0;text-align:left;display:flex;flex-direction:column;transition:transform .15s}
+.card:hover{transform:translateY(-2px)}
+.ph{aspect-ratio:4/3;width:100%;max-width:100%;background:var(--accent-soft);display:grid;place-items:center;overflow:hidden}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .ini{font-family:var(--display);font-weight:800;font-size:44px;color:var(--accent);opacity:.55}
+.card .txt{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.card h3{font-family:var(--display);font-weight:600;font-size:17px;margin:0;line-height:1.2;text-wrap:balance}
+.tags{display:flex;flex-wrap:wrap;gap:4px}
+.tag{font-size:12px;color:var(--herb);background:transparent;border:1px solid currentColor;border-radius:999px;padding:0 8px;opacity:.9}
+.when{font-size:12px;color:var(--muted)}
+
+.list{display:flex;flex-direction:column;margin-top:6px;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.row{display:flex;gap:12px;align-items:center;padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;width:100%}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--accent-soft)}
+.row .ph{width:64px;height:64px;aspect-ratio:auto;border-radius:10px;flex-shrink:0}
+.row .ph .ini{font-size:24px}
+.row .txt{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.row h3{font-family:var(--display);font-weight:600;font-size:16px;margin:0}
+.row .d{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.empty{text-align:center;padding:60px 16px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:12px}
+.empty b{font-family:var(--display);font-size:22px;color:var(--fg)}
+mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 1px}
+
+/* login */
+.login{min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:grid;place-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px}
+.login form{width:min(380px,100%);display:flex;flex-direction:column;gap:14px}
+.login img{width:84px;height:84px;border-radius:22px;box-shadow:var(--shadow)}
+.login h1{margin-top:6px}
+
+/* dialogs */
+dialog{border:0;border-radius:18px;padding:0;background:var(--surface);color:var(--fg);width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(20,8,12,.5)}
+.dlg{display:flex;flex-direction:column;gap:14px;padding:20px;overflow:auto;max-height:inherit}
+.dlg h2{font-family:var(--display);font-weight:800;font-size:26px;margin:0;line-height:1.1;text-wrap:balance}
+.f{display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:13px;letter-spacing:.02em}
+.f small{font-weight:400;color:var(--muted);letter-spacing:0}
+.f input,.f textarea{border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);font-weight:400;font-size:16px}
+.f textarea{min-height:70px;resize:vertical}
+.f input:focus,.f textarea:focus{border-color:var(--accent);outline:none}
+.photo-pick{border:1.5px dashed var(--line);border-radius:12px;aspect-ratio:16/9;max-width:100%;width:100%;display:grid;place-items:center;background:var(--bg);overflow:hidden;position:relative;color:var(--muted);text-align:center;padding:0}
+.photo-pick img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.photo-pick .hint{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:500}
+.photo-pick.has .hint{background:rgba(0,0,0,.55);color:#fff;padding:6px 12px;border-radius:999px;align-self:end;margin-bottom:10px;font-size:13px}
+.pick-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pick-chips .chip{padding:8px 14px;font-size:14px}
+.linkbtn{border:0;background:none;color:var(--accent);font-weight:600;font-size:13px;padding:0;align-self:flex-start;text-decoration:underline;text-underline-offset:3px}
+.foot{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;align-items:center}
+.foot .r{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.detail-img{width:100%;max-width:100%;border-radius:12px;aspect-ratio:4/3;object-fit:cover;background:var(--accent-soft)}
+.detail-desc{white-space:pre-wrap;margin:0}
+.err{color:var(--accent);font-size:13px;margin:0}
+.addrow{display:flex;gap:8px}
+.addrow input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);font-size:16px}
+.addrow input:focus{border-color:var(--accent);outline:none}
+#ing .dlg{overflow:hidden}
+.inglist{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex:1 1 auto;min-height:140px}
+.inglist li{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 14px;border-bottom:1px solid var(--line);min-height:48px}
+.inglist li:last-child{border-bottom:0}
+.inglist .nm{flex:1;min-width:0;font-weight:500}
+.inglist .cnt{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.inglist input{flex:1;min-width:0;border:1.5px solid var(--accent);border-radius:8px;padding:6px 10px;background:var(--bg);font-size:16px}
+.ib{border:0;background:none;color:var(--muted);padding:6px 8px;border-radius:8px;font-size:13px;font-weight:600}
+.ib:hover{background:var(--accent-soft);color:var(--fg)}
+.ib.del{color:var(--accent)}
+.menu{position:relative}
+.menu-pop{position:absolute;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;min-width:200px;z-index:30;display:flex;flex-direction:column}
+.menu-pop .who{font-size:12px;color:var(--muted);padding:6px 10px;overflow:hidden;text-overflow:ellipsis}
+.menu-pop button{border:0;background:none;text-align:left;padding:10px;border-radius:8px;font-weight:500}
+.menu-pop button:hover{background:var(--accent-soft)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 18px;border-radius:999px;font-weight:600;z-index:50;box-shadow:var(--shadow);max-width:calc(100vw - 32px);text-align:center}
+.fab{display:none}
+@media (max-width:560px){
+  .actions .btn.add{display:none}
+  .fab{display:inline-flex;position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:20;border-radius:999px;padding:14px 20px;box-shadow:0 8px 24px rgba(155,29,63,.35)}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .card h3{font-size:15px}
+  .card .txt{padding:8px 10px 10px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- login -->
+<section class="login" id="loginView" hidden>
+  <form id="loginForm" novalidate>
+    <img src="icons/icon-192.png" alt="">
+    <h1>Am Am<span>.</span></h1>
+    <p class="sub" style="margin:0">Zaloguj się, żeby zobaczyć Wasze obiady.</p>
+    <label class="f">E-mail
+      <input id="lEmail" type="email" autocomplete="username" inputmode="email" required>
+    </label>
+    <label class="f">Hasło
+      <input id="lPass" type="password" autocomplete="current-password" required>
+    </label>
+    <p class="err" id="lErr" hidden></p>
+    <button class="btn primary" id="lBtn" type="submit" style="padding:12px">Zaloguj</button>
+  </form>
+</section>
+
+<!-- app -->
+<div class="wrap" id="appView" hidden>
+  <header class="top">
+    <div>
+      <h1>Am Am<span>.</span></h1>
+      <p class="sub">Co na obiad? Nasze sprawdzone dania.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="randomBtn" type="button">🎲 Losuj obiad</button>
+      <button class="btn" id="ingBtn" type="button">Składniki</button>
+      <button class="btn primary add" id="addBtn" type="button">+ Dodaj danie</button>
+      <div class="menu">
+        <button class="btn icon" id="menuBtn" type="button" aria-label="Konto" aria-expanded="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+        </button>
+        <div class="menu-pop" id="menuPop" hidden>
+          <span class="who" id="whoami"></span>
+          <button type="button" id="refreshBtn">Odśwież</button>
+          <button type="button" id="logoutBtn">Wyloguj</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="bar">
+    <div class="searchrow">
+      <div class="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Szukaj: wołowina, makaron, zupa…" autocomplete="off" aria-label="Szukaj dań">
+        <button class="clear" id="qClear" type="button" aria-label="Wyczyść" hidden>×</button>
+      </div>
+      <div class="seg" role="group" aria-label="Widok">
+        <button type="button" id="vGrid" aria-pressed="true" aria-label="Zdjęcia"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg></button>
+        <button type="button" id="vList" aria-pressed="false" aria-label="Lista"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h0M3.5 12h0M3.5 18h0"/></svg></button>
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="meta">
+      <span id="count">Ładowanie…</span>
+      <div class="sort" role="group" aria-label="Sortowanie">
+        <button type="button" data-sort="new" aria-pressed="true">Najnowsze</button>
+        <button type="button" data-sort="old" aria-pressed="false">Dawno nie jedzone</button>
+        <button type="button" data-sort="az" aria-pressed="false">A–Z</button>
+      </div>
+    </div>
+  </div>
+
+  <main id="out"></main>
+</div>
+
+<button class="btn primary fab" id="fab" type="button" hidden>+ Dodaj</button>
+
+<!-- add / edit -->
+<dialog id="edit">
+  <form class="dlg" id="editForm" novalidate>
+    <h2 id="editTitle">Nowe danie</h2>
+    <button type="button" class="photo-pick" id="photoPick">
+      <span class="hint" id="photoHint"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span id="photoHintText">Zrób lub wybierz zdjęcie</span></span>
+    </button>
+    <input type="file" id="photoInput" accept="image/*" hidden>
+    <label class="f">Nazwa
+      <input id="fTitle" required maxlength="80" placeholder="np. Gulasz wołowy z kaszą">
+    </label>
+    <label class="f">Krótki opis <small>opcjonalnie</small>
+      <textarea id="fDesc" maxlength="600" placeholder="np. Babcia robi z papryką, najlepszy następnego dnia"></textarea>
+    </label>
+    <div class="f">Główne składniki <small>kliknij, żeby zaznaczyć</small></div>
+    <div class="pick-chips" id="tagPick"></div>
+    <button type="button" class="linkbtn" id="manageFromEdit">Brakuje składnika? Edytuj listę</button>
+    <p class="err" id="editErr" hidden></p>
+    <div class="foot">
+      <button type="button" class="btn danger" id="delBtn" hidden>Usuń</button>
+      <div class="r">
+        <button type="button" class="btn" id="cancelBtn">Anuluj</button>
+        <button type="submit" class="btn primary" id="saveBtn">Zapisz</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- ingredients -->
+<dialog id="ing">
+  <div class="dlg">
+    <h2>Składniki</h2>
+    <p class="sub" style="margin:0">Te przyciski pojawiają się przy dodawaniu dania i w filtrach.</p>
+    <form class="addrow" id="ingAdd">
+      <input id="ingNew" maxlength="30" placeholder="Nowy składnik, np. cukinia" aria-label="Nowy składnik" autocomplete="off">
+      <button class="btn primary" type="submit">Dodaj</button>
+    </form>
+    <p class="err" id="ingErr" hidden></p>
+    <ul class="inglist" id="ingList"></ul>
+    <div class="foot"><div class="r"><button type="button" class="btn" id="ingClose">Gotowe</button></div></div>
+  </div>
+</dialog>
+
+<!-- details -->
+<dialog id="detail">
+  <div class="dlg" id="detailBody"></div>
+</dialog>
+
+<script>
+(() => {
+  const SUPABASE_URL = "https://rargplpcjbpqpqcxeney.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_ca55LKWFcldKYg3NPUIjKA_bjM4G_iE";
+  const BUCKET = "photos";
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+
+  const $ = s => document.querySelector(s);
+  let dishes = [], ingredients = [], loaded = false, started = false;
+  const urls = new Map();            // photo_path -> displayable URL
+  const state = { q:"", tag:null, view:"grid", sort:"new" };
+  try { const s = JSON.parse(localStorage.getItem("amam-ui")||"{}"); if (s.view) state.view = s.view; if (s.sort) state.sort = s.sort; } catch {}
+  const saveUi = () => { try { localStorage.setItem("amam-ui", JSON.stringify({view:state.view, sort:state.sort})); } catch {} };
+
+  // ---------- helpers
+  const PL = {"ą":"a","ć":"c","ę":"e","ł":"l","ń":"n","ó":"o","ś":"s","ź":"z","ż":"z"};
+  const norm = s => (s||"").toLowerCase().replace(/[ąćęłńóśźż]/g, c => PL[c]).normalize("NFD").replace(/[̀-ͯ]/g,"");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const ts = iso => iso ? Date.parse(iso) : 0;
+  const plural = n => n===1 ? "danie" : (n%10>=2 && n%10<=4 && (n%100<10||n%100>=20)) ? "dania" : "dań";
+  const ingList = () => ingredients.slice().sort((a,b) => a.localeCompare(b,"pl"));
+  const must = r => { if (r.error) throw r.error; return r.data; };
+  function ago(t){
+    if (!t) return "";
+    const days = Math.floor((Date.now() - t) / 864e5);
+    if (days <= 0) return "dziś";
+    if (days === 1) return "wczoraj";
+    if (days < 7) return days + " dni temu";
+    if (days < 30) { const w = Math.round(days/7); return w === 1 ? "tydzień temu" : w + " tyg. temu"; }
+    const m = Math.round(days/30); return m <= 1 ? "miesiąc temu" : m + " mies. temu";
+  }
+  function hl(text, terms){
+    if (!terms.length || !text) return esc(text);
+    const n = norm(text); const marks = new Array(text.length).fill(false);
+    for (const t of terms){ let i = 0; while ((i = n.indexOf(t, i)) !== -1){ for (let k=i;k<i+t.length;k++) marks[k]=true; i += t.length; } }
+    let out = "", open = false;
+    for (let i=0;i<text.length;i++){
+      if (marks[i] && !open){ out += "<mark>"; open = true; }
+      if (!marks[i] && open){ out += "</mark>"; open = false; }
+      out += esc(text[i]);
+    }
+    return out + (open ? "</mark>" : "");
+  }
+  let toastT;
+  function toast(msg){
+    let t = $(".toast"); if (!t){ t = document.createElement("div"); t.className="toast"; document.body.appendChild(t); }
+    t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2400);
+  }
+  function errMsg(err){
+    const m = (err?.message || "").toLowerCase();
+    if (m.includes("jwt") || err?.status === 401 || err?.code === "PGRST301") { setTimeout(() => sb.auth.signOut(), 0); return "Sesja wygasła, zaloguj się ponownie."; }
+    if (m.includes("duplicate") || err?.code === "23505") return "Taki składnik już jest na liście.";
+    if (m.includes("failed to fetch") || m.includes("network")) return "Brak połączenia z internetem.";
+    return "Nie udało się zapisać. Spróbuj ponownie.";
+  }
+
+  // ---------- auth
+  function showLogin(){
+    started = false; dishes = []; ingredients = []; loaded = false; urls.clear();
+    $("#appView").hidden = true; $("#fab").hidden = true; $("#loginView").hidden = false;
+    $("#lBtn").disabled = false; $("#lBtn").textContent = "Zaloguj";
+  }
+  function showApp(session){
+    $("#loginView").hidden = true; $("#appView").hidden = false; $("#fab").hidden = false;
+    $("#whoami").textContent = session.user?.email || "";
+    if (!started){ started = true; render(); loadAll(); }
+  }
+  sb.auth.onAuthStateChange((event, session) => {
+    // defer: don't call supabase from inside this callback
+    setTimeout(() => session ? showApp(session) : showLogin(), 0);
+  });
+  $("#loginForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const email = $("#lEmail").value.trim(), password = $("#lPass").value;
+    const err = $("#lErr");
+    if (!email || !password){ err.textContent = "Wpisz e-mail i hasło."; err.hidden = false; return; }
+    $("#lBtn").disabled = true; $("#lBtn").textContent = "Loguję…"; err.hidden = true;
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error){
+      $("#lBtn").disabled = false; $("#lBtn").textContent = "Zaloguj";
+      err.textContent = /invalid/i.test(error.message) ? "Zły e-mail albo hasło." : "Nie udało się zalogować. Sprawdź internet.";
+      err.hidden = false;
+    }
+  });
+  $("#menuBtn").onclick = e => { e.stopPropagation(); const p = $("#menuPop"); p.hidden = !p.hidden; $("#menuBtn").setAttribute("aria-expanded", !p.hidden); };
+  document.addEventListener("click", e => { if (!e.target.closest(".menu")) $("#menuPop").hidden = true; });
+  $("#logoutBtn").onclick = () => { $("#menuPop").hidden = true; sb.auth.signOut(); };
+  $("#refreshBtn").onclick = () => { $("#menuPop").hidden = true; loadAll(); };
+
+  // ---------- data
+  async function loadAll(){
+    try {
+      const [d, i] = await Promise.all([
+        sb.from("dishes").select("*").order("created_at", { ascending:false }).then(must),
+        sb.from("ingredients").select("name").then(must),
+      ]);
+      dishes = d; ingredients = i.map(x => x.name); loaded = true;
+      render();
+      await signPhotos();
+    } catch (err) {
+      loaded = true; render();
+      toast(errMsg(err) === "Nie udało się zapisać. Spróbuj ponownie." ? "Nie udało się wczytać dań." : errMsg(err));
+    }
+  }
+  async function signPhotos(){
+    const need = [...new Set(dishes.map(d => d.photo_path).filter(p => p && !urls.has(p)))];
+    if (!need.length) return;
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(need, 60*60*24*7);
+    if (error || !data) return;
+    for (const r of data) if (r.signedUrl) urls.set(r.path, r.signedUrl);
+    render();
+  }
+  // re-sync when the app comes back to the foreground
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && started) loadAll(); });
+
+  // ---------- filtering
+  function terms(){ return norm(state.q).split(/\s+/).filter(Boolean); }
+  function filtered(){
+    const tt = terms();
+    let list = dishes.filter(d => {
+      if (state.tag && !(d.tags||[]).includes(state.tag)) return false;
+      if (!tt.length) return true;
+      const hay = norm([d.title, d.description, ...(d.tags||[])].join(" "));
+      return tt.every(t => hay.includes(t));
+    });
+    if (state.sort === "new") list.sort((a,b) => ts(b.created_at) - ts(a.created_at));
+    else if (state.sort === "old") list.sort((a,b) => (ts(a.last_eaten)||ts(a.created_at)) - (ts(b.last_eaten)||ts(b.created_at)));
+    else list.sort((a,b) => (a.title||"").localeCompare(b.title||"", "pl"));
+    return list;
+  }
+  function tagCounts(){
+    const m = new Map();
+    for (const d of dishes) for (const t of d.tags||[]) m.set(t, (m.get(t)||0)+1);
+    return [...m.entries()].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],"pl"));
+  }
+
+  // ---------- render
+  function phHTML(d){
+    const src = d.photo_path ? urls.get(d.photo_path) : null;
+    return `<div class="ph">${src ? `<img src="${esc(src)}" alt="" loading="lazy">` : `<span class="ini">${esc(((d.title||"?").trim()[0]||"?").toUpperCase())}</span>`}</div>`;
+  }
+  function render(){
+    const tc = tagCounts();
+    $("#chips").innerHTML = tc.length ? [`<button class="chip" type="button" data-tag="" aria-pressed="${!state.tag}">Wszystko</button>`,
+      ...tc.map(([t,n]) => `<button class="chip" type="button" data-tag="${esc(t)}" aria-pressed="${state.tag===t}">${esc(t)}<span class="n">${n}</span></button>`)].join("") : "";
+    $("#vGrid").setAttribute("aria-pressed", state.view==="grid");
+    $("#vList").setAttribute("aria-pressed", state.view==="list");
+    document.querySelectorAll(".sort button").forEach(b => b.setAttribute("aria-pressed", b.dataset.sort===state.sort));
+    $("#qClear").hidden = !state.q;
+
+    const out = $("#out");
+    if (!loaded){ $("#count").textContent = "Ładowanie…"; out.innerHTML = ""; return; }
+    if (!dishes.length){
+      $("#count").textContent = "0 dań";
+      out.innerHTML = `<div class="empty"><b>Jeszcze pusto</b><span>Dodaj pierwsze danie, które jedliście: zdjęcie, nazwa i kilka składników.</span><button class="btn primary" type="button" data-act="add">+ Dodaj pierwsze danie</button></div>`;
+      return;
+    }
+    const list = filtered(), tt = terms();
+    $("#count").textContent = list.length === dishes.length ? `${dishes.length} ${plural(dishes.length)}` : `${list.length} z ${dishes.length}`;
+    if (!list.length){
+      out.innerHTML = `<div class="empty"><b>Nic nie pasuje</b><span>Spróbuj innego słowa albo wyczyść filtry.</span><button class="btn" type="button" data-act="reset">Wyczyść filtry</button></div>`;
+      return;
+    }
+    if (state.view === "grid"){
+      out.innerHTML = `<div class="grid">${list.map(d => `
+        <button class="card" type="button" data-id="${d.id}">
+          ${phHTML(d)}
+          <div class="txt"><h3>${hl(d.title, tt)}</h3>
+          ${(d.tags||[]).length ? `<div class="tags">${d.tags.slice(0,4).map(t => `<span class="tag">${hl(t, tt)}</span>`).join("")}</div>` : ""}
+          ${d.last_eaten ? `<span class="when">jedliśmy ${ago(ts(d.last_eaten))}</span>` : ""}</div>
+        </button>`).join("")}</div>`;
+    } else {
+      out.innerHTML = `<div class="list">${list.map(d => `
+        <button class="row" type="button" data-id="${d.id}">
+          ${phHTML(d)}
+          <div class="txt"><h3>${hl(d.title, tt)}</h3>
+            ${d.description ? `<span class="d">${hl(d.description, tt)}</span>` : ""}
+            ${(d.tags||[]).length ? `<div class="tags">${d.tags.map(t => `<span class="tag">${hl(t, tt)}</span>`).join("")}</div>` : ""}
+          </div>
+          ${d.last_eaten ? `<span class="when">${ago(ts(d.last_eaten))}</span>` : ""}
+        </button>`).join("")}</div>`;
+    }
+  }
+
+  // ---------- list events
+  $("#q").addEventListener("input", e => { state.q = e.target.value; render(); });
+  $("#qClear").onclick = () => { state.q = ""; $("#q").value = ""; render(); $("#q").focus(); };
+  $("#vGrid").onclick = () => { state.view="grid"; saveUi(); render(); };
+  $("#vList").onclick = () => { state.view="list"; saveUi(); render(); };
+  document.querySelectorAll(".sort button").forEach(b => b.onclick = () => { state.sort = b.dataset.sort; saveUi(); render(); });
+  $("#chips").addEventListener("click", e => { const c = e.target.closest(".chip"); if (!c) return; const t = c.dataset.tag || null; state.tag = state.tag === t ? null : t; render(); });
+  $("#out").addEventListener("click", e => {
+    const a = e.target.closest("[data-act]");
+    if (a?.dataset.act === "add") return openEdit(null);
+    if (a?.dataset.act === "reset"){ state.q=""; state.tag=null; $("#q").value=""; return render(); }
+    const c = e.target.closest("[data-id]"); if (c) openDetail(c.dataset.id);
+  });
+  $("#addBtn").onclick = $("#fab").onclick = () => openEdit(null);
+  $("#randomBtn").onclick = () => {
+    const pool = filtered(); if (!pool.length) return toast(dishes.length ? "Brak dań dla tych filtrów" : "Najpierw dodaj jakieś danie");
+    const weights = pool.map(d => 1 + Math.min(60, (Date.now() - (ts(d.last_eaten) || ts(d.created_at))) / 864e5));
+    let r = Math.random() * weights.reduce((a,b)=>a+b,0), i = 0;
+    while ((r -= weights[i]) > 0 && i < pool.length-1) i++;
+    openDetail(pool[i].id, true);
+  };
+
+  // ---------- detail
+  const detail = $("#detail");
+  function openDetail(id, random){
+    const d = dishes.find(x => x.id === id); if (!d) return;
+    const src = d.photo_path ? urls.get(d.photo_path) : null;
+    $("#detailBody").innerHTML = `
+      ${random ? `<p class="when" style="margin:0">🎲 Wylosowało się:</p>` : ""}
+      ${src ? `<img class="detail-img" src="${esc(src)}" alt="${esc(d.title)}">` : ""}
+      <h2>${esc(d.title)}</h2>
+      ${(d.tags||[]).length ? `<div class="tags">${d.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
+      ${d.description ? `<p class="detail-desc">${esc(d.description)}</p>` : ""}
+      <span class="when">${d.last_eaten ? "Ostatnio jedliśmy " + ago(ts(d.last_eaten)) : "Dodane " + ago(ts(d.created_at))}</span>
+      <div class="foot">
+        <button class="btn" type="button" data-d="edit">Edytuj</button>
+        <div class="r">
+          ${random ? `<button class="btn" type="button" data-d="again">Losuj jeszcze raz</button>` : `<button class="btn" type="button" data-d="close">Zamknij</button>`}
+          <button class="btn primary" type="button" data-d="eaten">Jemy dziś</button>
+        </div>
+      </div>`;
+    $("#detailBody").onclick = async e => {
+      const b = e.target.closest("[data-d]"); if (!b) return;
+      if (b.dataset.d === "close") return detail.close();
+      if (b.dataset.d === "again"){ detail.close(); return $("#randomBtn").click(); }
+      if (b.dataset.d === "edit"){ detail.close(); return openEdit(d); }
+      if (b.dataset.d === "eaten"){
+        b.disabled = true;
+        try {
+          const row = must(await sb.from("dishes").update({ last_eaten: new Date().toISOString() }).eq("id", d.id).select().single());
+          Object.assign(d, row); render(); detail.close(); toast("Smacznego!");
+        } catch (err) { b.disabled = false; toast(errMsg(err)); }
+      }
+    };
+    if (!detail.open) detail.showModal();
+  }
+  detail.addEventListener("click", e => { if (e.target === detail) detail.close(); });
+
+  // ---------- edit
+  const edit = $("#edit");
+  let editing = null, pendingFile = null, pendingPreview = null, delArmed = false, sel = new Set();
+  function renderTagPick(){
+    const all = [...new Set([...ingList(), ...sel])];
+    $("#tagPick").innerHTML = all.map(t => `<button type="button" class="chip" data-t="${esc(t)}" aria-pressed="${sel.has(t)}">${esc(t)}</button>`).join("");
+  }
+  $("#tagPick").addEventListener("click", e => {
+    const c = e.target.closest("[data-t]"); if (!c) return;
+    const t = c.dataset.t; sel.has(t) ? sel.delete(t) : sel.add(t);
+    c.setAttribute("aria-pressed", sel.has(t));
+  });
+  $("#manageFromEdit").onclick = () => openIng();
+
+  function setPhotoPreview(url){
+    const p = $("#photoPick"); p.querySelector("img")?.remove();
+    if (url){ const i = new Image(); i.src = url; i.alt = ""; p.prepend(i); p.classList.add("has"); $("#photoHintText").textContent = "Zmień zdjęcie"; }
+    else { p.classList.remove("has"); $("#photoHintText").textContent = "Zrób lub wybierz zdjęcie"; }
+  }
+  function openEdit(d){
+    editing = d; pendingFile = null; delArmed = false; sel = new Set(d?.tags || []);
+    if (pendingPreview) { URL.revokeObjectURL(pendingPreview); pendingPreview = null; }
+    $("#editTitle").textContent = d ? "Edytuj danie" : "Nowe danie";
+    $("#fTitle").value = d?.title || ""; $("#fDesc").value = d?.description || "";
+    $("#delBtn").hidden = !d; $("#delBtn").textContent = "Usuń"; $("#delBtn").disabled = false;
+    $("#editErr").hidden = true; $("#saveBtn").disabled = false; $("#saveBtn").textContent = "Zapisz";
+    setPhotoPreview(d?.photo_path ? urls.get(d.photo_path) : null);
+    renderTagPick();
+    if (detail.open) detail.close();
+    edit.showModal();
+  }
+  $("#cancelBtn").onclick = () => edit.close();
+  $("#photoPick").onclick = () => $("#photoInput").click();
+  $("#photoInput").onchange = e => {
+    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+    pendingFile = f; if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    pendingPreview = URL.createObjectURL(f); setPhotoPreview(pendingPreview);
+  };
+  async function shrink(file){
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const max = 1400, k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas"); c.width = Math.round(bmp.width*k); c.height = Math.round(bmp.height*k);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
+      if (blob) return blob;
+    } catch {}
+    return null;
+  }
+  const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+  function showErr(msg){ const e = $("#editErr"); e.textContent = msg; e.hidden = false; }
+
+  $("#editForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const title = $("#fTitle").value.trim();
+    if (!title){ showErr("Wpisz nazwę dania."); $("#fTitle").focus(); return; }
+    const save = $("#saveBtn"); save.disabled = true; $("#editErr").hidden = true;
+    let uploaded = null;
+    try {
+      let photo_path = editing?.photo_path || null;
+      if (pendingFile){
+        save.textContent = "Wysyłam zdjęcie…";
+        const blob = await shrink(pendingFile);
+        if (!blob){ showErr("Nie udało się odczytać zdjęcia. Spróbuj zrobić je jeszcze raz albo wybierz inne."); save.disabled = false; save.textContent = "Zapisz"; return; }
+        const path = newId() + ".jpg";
+        must(await sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000" }));
+        uploaded = path; urls.set(path, URL.createObjectURL(blob)); photo_path = path;
+      }
+      save.textContent = "Zapisuję…";
+      const data = { title, description: $("#fDesc").value.trim(), tags: [...sel].sort((a,b) => a.localeCompare(b,"pl")), photo_path };
+      if (editing){
+        const row = must(await sb.from("dishes").update(data).eq("id", editing.id).select().single());
+        const old = editing.photo_path;
+        Object.assign(editing, row);
+        if (uploaded && old && old !== uploaded) sb.storage.from(BUCKET).remove([old]);
+      } else {
+        const row = must(await sb.from("dishes").insert(data).select().single());
+        dishes.unshift(row);
+      }
+      const wasEdit = !!editing;
+      edit.close(); render(); toast(wasEdit ? "Zapisano zmiany" : "Dodano danie");
+    } catch (err) {
+      if (uploaded) sb.storage.from(BUCKET).remove([uploaded]);
+      save.disabled = false; save.textContent = "Zapisz"; showErr(errMsg(err));
+    }
+  });
+
+  $("#delBtn").onclick = async () => {
+    if (!editing) return;
+    if (!delArmed){ delArmed = true; $("#delBtn").textContent = "Na pewno usunąć?"; return; }
+    $("#delBtn").disabled = true;
+    try {
+      must(await sb.from("dishes").delete().eq("id", editing.id));
+      if (editing.photo_path) sb.storage.from(BUCKET).remove([editing.photo_path]);
+      dishes = dishes.filter(d => d.id !== editing.id);
+      edit.close(); render(); toast("Usunięto");
+    } catch (err) { $("#delBtn").disabled = false; toast(errMsg(err)); }
+  };
+
+  // ---------- ingredients manager
+  const ing = $("#ing");
+  let editingIng = null, armedDel = null;
+  function renderIng(){
+    const counts = new Map(tagCounts());
+    $("#ingList").innerHTML = ingList().map(t => {
+      const n = counts.get(t) || 0;
+      if (editingIng === t) return `<li><input id="ingRename" value="${esc(t)}" maxlength="30" aria-label="Nowa nazwa"><button class="ib" type="button" data-a="ok" data-t="${esc(t)}">Zapisz</button><button class="ib" type="button" data-a="cancel">Anuluj</button></li>`;
+      return `<li><span class="nm">${esc(t)}</span><span class="cnt">${n ? n + " " + plural(n) : ""}</span>
+        <button class="ib" type="button" data-a="ren" data-t="${esc(t)}">Zmień</button>
+        <button class="ib del" type="button" data-a="del" data-t="${esc(t)}">${armedDel === t ? (n ? "Usunąć z " + n + " " + plural(n) + "?" : "Na pewno?") : "Usuń"}</button></li>`;
+    }).join("");
+    if (editingIng){ const i = $("#ingRename"); i.focus(); i.select(); }
+  }
+  function openIng(){
+    editingIng = null; armedDel = null; ingErr(""); $("#ingNew").value = "";
+    renderIng(); ing.showModal();
+  }
+  $("#ingBtn").onclick = openIng;
+  $("#ingClose").onclick = () => ing.close();
+  ing.addEventListener("close", () => { if (edit.open) renderTagPick(); render(); });
+  const cleanIng = s => s.trim().replace(/\s+/g," ").toLowerCase();
+  function ingErr(m){ const e = $("#ingErr"); e.textContent = m; e.hidden = !m; }
+  async function retagDishes(from, to){
+    for (const d of dishes.filter(d => (d.tags||[]).includes(from))){
+      const tags = to ? [...new Set(d.tags.map(x => x === from ? to : x))] : d.tags.filter(x => x !== from);
+      must(await sb.from("dishes").update({ tags }).eq("id", d.id));
+      d.tags = tags;
+    }
+  }
+
+  $("#ingAdd").addEventListener("submit", async e => {
+    e.preventDefault();
+    const t = cleanIng($("#ingNew").value); if (!t) return;
+    if (ingredients.some(x => norm(x) === norm(t))) return ingErr(`„${t}” już jest na liście.`);
+    ingErr("");
+    try { must(await sb.from("ingredients").insert({ name: t })); ingredients.push(t); $("#ingNew").value = ""; renderIng(); toast("Dodano: " + t); }
+    catch (err) { ingErr(errMsg(err)); }
+  });
+  $("#ingList").addEventListener("keydown", e => {
+    if (e.target.id !== "ingRename") return;
+    if (e.key === "Enter"){ e.preventDefault(); $("#ingList [data-a=ok]").click(); }
+    if (e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); editingIng = null; renderIng(); }
+  });
+  $("#ingList").addEventListener("click", async e => {
+    const b = e.target.closest("[data-a]"); if (!b) return;
+    const a = b.dataset.a, t = b.dataset.t;
+    if (a === "ren"){ editingIng = t; armedDel = null; ingErr(""); return renderIng(); }
+    if (a === "cancel"){ editingIng = null; return renderIng(); }
+    if (a === "ok"){
+      const nt = cleanIng($("#ingRename").value);
+      if (!nt || nt === t){ editingIng = null; return renderIng(); }
+      if (ingredients.some(x => x !== t && norm(x) === norm(nt))) return ingErr(`„${nt}” już jest na liście.`);
+      ingErr(""); b.disabled = true;
+      try {
+        must(await sb.from("ingredients").update({ name: nt }).eq("name", t));
+        ingredients = ingredients.map(x => x === t ? nt : x);
+        await retagDishes(t, nt);
+        if (state.tag === t) state.tag = nt;
+        if (sel.has(t)){ sel.delete(t); sel.add(nt); }
+        editingIng = null; renderIng(); toast("Zmieniono na: " + nt);
+      } catch (err) { b.disabled = false; ingErr(errMsg(err)); }
+      return;
+    }
+    if (a === "del"){
+      if (armedDel !== t){ armedDel = t; return renderIng(); }
+      b.disabled = true;
+      try {
+        must(await sb.from("ingredients").delete().eq("name", t));
+        ingredients = ingredients.filter(x => x !== t);
+        await retagDishes(t, null);
+        if (state.tag === t) state.tag = null;
+        sel.delete(t); armedDel = null; renderIng(); toast("Usunięto: " + t);
+      } catch (err) { b.disabled = false; ingErr(errMsg(err)); }
+    }
+  });
+
+  // ---------- PWA
+  if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+})();
+</script>
+</body>
+</html>
